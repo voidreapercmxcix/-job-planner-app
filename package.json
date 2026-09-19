@@ -1,6 +1,6 @@
 {
   "name": "job-planner-app",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Job Planner Android app",
   "dependencies": {
     "@capacitor/android": "^8.5.2",
