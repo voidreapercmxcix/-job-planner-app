@@ -1,0 +1,12 @@
+{
+  "name": "Job Planner",
+  "short_name": "Jobs",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1B2130",
+  "theme_color": "#1B2130",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "appId": "uk.jobplanner.app",
+  "appName": "Job Planner",
+  "webDir": "www",
+  "android": { "allowMixedContent": false },
+  "plugins": {
+    "LocalNotifications": { "smallIcon": "ic_stat_icon", "iconColor": "#F2B441" }
+  }
+}
