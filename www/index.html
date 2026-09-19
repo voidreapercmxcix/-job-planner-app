@@ -194,10 +194,10 @@ header h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--ink2)
   <div>
     <h3><span id="editTitle">New job</span><button class="btn ghost" id="editClose">Close</button></h3>
     <div class="row">
-      <div class="f"><label for="reg">Reg</label><input id="reg" autocapitalize="characters" placeholder="NV73 OCL"></div>
-      <div class="f"><label for="ref">Job ref</label><input id="ref" placeholder="J-A945-98DF"></div>
+      <div class="f"><label for="reg">Reg</label><input id="reg" autocapitalize="characters" placeholder="AB12 CDE"></div>
+      <div class="f"><label for="ref">Job ref</label><input id="ref" placeholder="J-0000-0000"></div>
     </div>
-    <div class="f"><label for="vehicle">Vehicle</label><input id="vehicle" placeholder="Iveco Daily 35S14B"></div>
+    <div class="f"><label for="vehicle">Vehicle</label><input id="vehicle" placeholder="Ford Transit 350"></div>
 
     <div class="grp">
       <h4>Collect</h4>
@@ -335,7 +335,7 @@ async function nativeBoot(){
 
 // ---------- storage ----------
 const KEY = 'jobs.v1';
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 let jobs = [];
 function load(){ try{ jobs = JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ jobs = []; } }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(jobs)); }catch(e){ toast('Could not save. Storage may be full.'); } syncAlarms(); }
