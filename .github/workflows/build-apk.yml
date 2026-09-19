@@ -34,6 +34,16 @@ jobs:
       - name: Install packages
         run: npm ci
 
+      - name: Bundle the Capacitor runtime into the web app
+        run: |
+          mkdir -p www/vendor
+          cp node_modules/@capacitor/core/dist/capacitor.js               www/vendor/capacitor.js
+          cp node_modules/@capacitor/local-notifications/dist/plugin.js   www/vendor/local-notifications.js
+          cp node_modules/@capacitor/synapse/dist/synapse.js              www/vendor/synapse.js
+          cp node_modules/@capacitor/filesystem/dist/plugin.js            www/vendor/filesystem.js
+          cp node_modules/@capacitor/share/dist/plugin.js                 www/vendor/share.js
+          ls -la www/vendor
+
       - name: Create the Android project
         run: npx cap add android
 
