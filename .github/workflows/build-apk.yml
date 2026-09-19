@@ -58,12 +58,14 @@ jobs:
       - name: Signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             # tolerate spaces or line breaks picked up while copying and pasting
             echo "$KEYSTORE_BASE64" | tr -d ' \n\r\t' | base64 -d > "$RUNNER_TEMP/release.keystore" \
               || { echo "::error::KEYSTORE_BASE64 secret isn't valid. Re-copy the whole of keystore-base64.txt (Ctrl+A, Ctrl+C) and paste it again."; exit 1; }
-            keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "${{ secrets.KEYSTORE_PASSWORD }}" -alias "${{ secrets.KEY_ALIAS }}" > /dev/null \
+            keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "$KS_PASS" -alias "$KS_ALIAS" > /dev/null \
               || { echo "::error::The key was decoded but the password or alias doesn't match. Check KEYSTORE_PASSWORD, KEY_PASSWORD and KEY_ALIAS."; exit 1; }
             echo "Signing key OK."
             echo "HAS_KEY=yes" >> "$GITHUB_ENV"
@@ -75,13 +77,17 @@ jobs:
       - name: Build signed release
         if: env.HAS_KEY == 'yes'
         working-directory: android
+        env:
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon \
             -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.keystore" \
-            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
-            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
-            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
+            -Pandroid.injected.signing.store.password="$KS_PASS" \
+            -Pandroid.injected.signing.key.alias="$KS_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASS"
           cp app/build/outputs/apk/release/app-release.apk "../JobPlanner-${VERSION}.apk"
 
       - name: Build debug (no signing key set up yet)
