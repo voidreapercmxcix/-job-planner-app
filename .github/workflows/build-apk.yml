@@ -60,13 +60,20 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
           KS_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             # tolerate spaces or line breaks picked up while copying and pasting
             echo "$KEYSTORE_BASE64" | tr -d ' \n\r\t' | base64 -d > "$RUNNER_TEMP/release.keystore" \
               || { echo "::error::KEYSTORE_BASE64 secret isn't valid. Re-copy the whole of keystore-base64.txt (Ctrl+A, Ctrl+C) and paste it again."; exit 1; }
+            # report which secret is wrong, without printing any of them
+            PH=$(printf %s "$KS_PASS" | sha256sum | cut -c1-16)
+            [ "$PH" = "8f6288e5c97be4ec" ] && echo "KEYSTORE_PASSWORD: OK" || echo "::error::KEYSTORE_PASSWORD is wrong (it has ${#KS_PASS} characters; the real one has 20). Re-paste it from keystore-password.txt."
+            [ "$KS_ALIAS" = "jobplanner" ] && echo "KEY_ALIAS: OK" || echo "::error::KEY_ALIAS is wrong (it has ${#KS_ALIAS} characters). It must be exactly: jobplanner"
+            KPH=$(printf %s "$KEY_PASS" | sha256sum | cut -c1-16)
+            [ "$KPH" = "8f6288e5c97be4ec" ] && echo "KEY_PASSWORD: OK" || echo "::error::KEY_PASSWORD is wrong (it has ${#KEY_PASS} characters; the real one has 20). Re-paste it from keystore-password.txt."
             keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "$KS_PASS" -alias "$KS_ALIAS" > /dev/null \
-              || { echo "::error::The key was decoded but the password or alias doesn't match. Check KEYSTORE_PASSWORD, KEY_PASSWORD and KEY_ALIAS."; exit 1; }
+              || { echo "::error::The key was decoded but the password or alias doesn't match. See the messages above."; exit 1; }
             echo "Signing key OK."
             echo "HAS_KEY=yes" >> "$GITHUB_ENV"
           else
