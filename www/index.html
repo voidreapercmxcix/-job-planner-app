@@ -291,12 +291,20 @@ header h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--ink2)
 
 <div class="toast" id="toast"></div>
 
+<script src="vendor/capacitor.js"></script>
+<script src="vendor/local-notifications.js"></script>
+<script src="vendor/synapse.js"></script>
+<script>var synapse = window.outsystemsSynapse;</script>
+<script src="vendor/filesystem.js"></script>
+<script src="vendor/share.js"></script>
 <script>
+// any crash shows on screen instead of silently killing the buttons
+window.addEventListener('error', e=>{ try{ const t=document.getElementById('toast'); t.textContent='Error: '+(e.message||e); t.classList.add('show'); }catch(x){} });
 // ---------- native bridge (only active inside the Android app) ----------
 const NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
-const LN = NATIVE ? Capacitor.registerPlugin('LocalNotifications') : null;
-const FS = NATIVE ? Capacitor.registerPlugin('Filesystem') : null;
-const SH = NATIVE ? Capacitor.registerPlugin('Share') : null;
+const LN = NATIVE && window.capacitorLocalNotifications ? capacitorLocalNotifications.LocalNotifications : null;
+const FS = NATIVE && window.capacitorFilesystemPluginCapacitor ? capacitorFilesystemPluginCapacitor.Filesystem : null;
+const SH = NATIVE && window.capacitorShare ? capacitorShare.Share : null;
 function nid(j,k){ let h=0; for(const c of j.id+k) h=(h*31+c.charCodeAt(0))|0; return Math.abs(h)%2000000000; }
 async function syncAlarms(){
   if(!LN) return;
@@ -327,7 +335,7 @@ async function nativeBoot(){
 
 // ---------- storage ----------
 const KEY = 'jobs.v1';
-const VERSION = '1.0';
+const VERSION = '1.0.1';
 let jobs = [];
 function load(){ try{ jobs = JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ jobs = []; } }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(jobs)); }catch(e){ toast('Could not save. Storage may be full.'); } syncAlarms(); }
