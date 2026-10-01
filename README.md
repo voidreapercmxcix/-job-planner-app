@@ -19,10 +19,13 @@ Everything else is the same as the web version, and a backup file from one resto
 1. Open the **Releases** page of this repository on the phone.
 2. Download the `.apk` file from the newest release.
 3. Open it. Android will ask, once, to allow installs from your browser. Allow it, then Install.
-4. Open Job Planner. When it asks to send notifications, allow it. If it opens the "Alarms and reminders" settings page, switch it on there and go back. That's what lets alarms fire at the exact minute.
-5. In the ⋯ menu tap **Test an alarm**, lock the phone, and wait 15 seconds.
+4. **Google Play Protect will block it** with "App blocked to protect your device", because the app isn't from the Play Store. Tap **More details**, then tap the grey words **Install anyway**. It looks like a sentence, not a button, and it sits just above the big blue OK. Don't tap OK (that cancels), and don't uninstall the app to get round it.
+5. Open Job Planner. When it asks to send notifications, allow it. If it opens the "Alarms and reminders" settings page, switch it on there and go back. That's what lets alarms fire at the exact minute.
+6. In the ⋯ menu tap **Test alarm**, lock the phone, and wait 15 seconds.
 
-To update: download the newer `.apk` from Releases and open it. It installs over the old one and keeps your jobs.
+To update: **save a backup first** (⋯ menu, Save backup file), then download the newer `.apk` from Releases and open it. Play Protect blocks it the same way every time; use More details, Install anyway as above. It installs over the old one and keeps your jobs.
+
+Never uninstall the app to get past Play Protect. Uninstalling deletes everything stored in it. If anything is missing after an update, ⋯ menu, Restore from backup puts it back.
 
 ## How the build works
 
