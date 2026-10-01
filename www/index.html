@@ -27,9 +27,13 @@ button{background:none;border:0;cursor:pointer;min-height:var(--tap);border-radi
 button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
 .hidden{display:none!important}
 
-header{padding:10px 14px 6px;display:flex;align-items:center;gap:8px}
-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.01em;flex:1}
-header h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--ink2)}
+header{padding:10px 12px 6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.01em;flex:1 1 auto;line-height:1.15}
+header h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--ink2);white-space:nowrap}
+header .hbtns{display:flex;gap:6px;align-items:center;margin-left:auto;flex:0 0 auto}
+header .btn{flex:0 0 auto;padding:0 10px}
+header .btn.ghost{padding:0 6px}
+header .btn.icon{padding:0;width:44px}
 .btn{background:var(--panel2);font-weight:600;white-space:nowrap}
 .btn.primary{background:var(--amber);color:var(--amber-ink)}
 .btn.danger{background:var(--red);color:#fff}
@@ -143,10 +147,12 @@ header h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--ink2)
 
 <header>
   <h1>Jobs <small id="todayLabel"></small></h1>
-  <button class="btn ghost" id="viewBtn">Money</button>
-  <button class="btn" id="pasteBtn">Paste job</button>
-  <button class="btn primary icon" id="addBtn" aria-label="Add job">+</button>
-  <button class="btn ghost icon" id="menuBtn" aria-label="Menu">⋯</button>
+  <div class="hbtns">
+    <button class="btn ghost" id="viewBtn">Money</button>
+    <button class="btn" id="pasteBtn">Paste</button>
+    <button class="btn primary icon" id="addBtn" aria-label="Add job">+</button>
+    <button class="btn ghost icon" id="menuBtn" aria-label="Menu">⋯</button>
+  </div>
 </header>
 
 <div class="days" id="days"></div>
@@ -353,7 +359,7 @@ async function nativeBoot(){
 
 // ---------- storage ----------
 const KEY = 'jobs.v1';
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 let jobs = [];
 function load(){ try{ jobs = JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ jobs = []; } }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(jobs)); }catch(e){ toast('Could not save. Storage may be full.'); } syncAlarms(); autoBackup(); }
@@ -451,7 +457,7 @@ function render(){
       .sort((a,b)=> (a.cPlan||a.cStart||'').localeCompare(b.cPlan||b.cStart||''));
     $('n-'+st).textContent = list.length ? list.length : '';
     const el = $('l-'+st); el.innerHTML='';
-    if(!list.length){ el.innerHTML = `<div class="empty">${st==='todo'?'Nothing to collect'+(selectedDay?' this day':'')+'. Tap + or Paste job.':st==='onboard'?'Nothing on board.':'Nothing delivered yet.'}</div>`; continue; }
+    if(!list.length){ el.innerHTML = `<div class="empty">${st==='todo'?'Nothing to collect'+(selectedDay?' this day':'')+'. Tap + or Paste.':st==='onboard'?'Nothing on board.':'Nothing delivered yet.'}</div>`; continue; }
     for(const j of list) el.appendChild(card(j));
   }
 }
