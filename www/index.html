@@ -292,6 +292,7 @@ header h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--ink2)
   <div class="menu">
     <h3>Backup<button class="btn ghost" id="menuClose">Close</button></h3>
     <p>Everything is stored on this phone only. Save a backup now and then, and restore it if you change phones.</p>
+    <p class="hidden" id="autoNote">The app also keeps a safety copy in Documents &gt; JobPlanner on this phone, updated every time you save. If the app ever has to be reinstalled, Restore from backup and pick that file.</p>
     <p style="color:var(--amber);font-weight:600">Before installing an update, save a backup first. If anything is missing afterwards, Restore from backup puts it back.</p>
     <button class="btn" id="exportBtn">Save backup file</button>
     <button class="btn" id="importBtn">Restore from backup</button>
@@ -343,6 +344,7 @@ async function syncAlarms(){
   }catch(e){ console.error('alarms', e); }
 }
 async function nativeBoot(){
+  if(FS){ try{ await FS.requestPermissions(); }catch(e){} autoBackup(); }
   if(!LN) return;
   try{ await LN.requestPermissions(); }catch(e){}
   try{ LN.addListener('localNotificationActionPerformed', ev=>{ const id=ev.notification&&ev.notification.extra&&ev.notification.extra.jobId; const j=jobs.find(x=>x.id===id); if(j) openEdit(j); }); }catch(e){}
@@ -351,10 +353,24 @@ async function nativeBoot(){
 
 // ---------- storage ----------
 const KEY = 'jobs.v1';
-const VERSION = '1.1.1';
+const VERSION = '1.2.0';
 let jobs = [];
 function load(){ try{ jobs = JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ jobs = []; } }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(jobs)); }catch(e){ toast('Could not save. Storage may be full.'); } syncAlarms(); }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(jobs)); }catch(e){ toast('Could not save. Storage may be full.'); } syncAlarms(); autoBackup(); }
+// ---------- automatic safety copy (app only): Documents/JobPlanner/jobs-backup.json, rewritten after every save ----------
+const AUTO_PATH = 'JobPlanner/jobs-backup.json';
+let autoState = '';
+let autoTimer = null;
+function autoBackup(){
+  if(!FS) return;
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(async()=>{
+    try{
+      await FS.writeFile({path:AUTO_PATH, data:JSON.stringify(jobs,null,2), directory:'DOCUMENTS', encoding:'utf8', recursive:true});
+      autoState = 'ok';
+    }catch(e){ autoState = 'fail'; console.error('autoBackup', e); }
+  }, 1500);
+}
 
 // ---------- helpers ----------
 const $ = id => document.getElementById(id);
@@ -587,7 +603,7 @@ $('odoClose').onclick=()=>closeSheet('odoSheet');
 $('odoVal').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); $('odoGo').click(); } });
 $('waitRate').value = settings.waitRate; $('waitRate').addEventListener('change',()=>{ settings.waitRate=Number($('waitRate').value||0); saveSettings(); });
 $('rate').value = settings.rate;
-if(NATIVE){ $('leadBox').classList.remove('hidden'); $('testAlarm').classList.remove('hidden'); }
+if(NATIVE){ $('leadBox').classList.remove('hidden'); $('testAlarm').classList.remove('hidden'); if(FS) $('autoNote').classList.remove('hidden'); }
 $('lead').value = settings.lead||60; $('lead').addEventListener('change',()=>{ settings.lead=Number($('lead').value||60); saveSettings(); syncAlarms(); });
 $('testAlarm').onclick=async()=>{ try{ await LN.requestPermissions(); await LN.schedule({notifications:[{id:1, title:'Job Planner test', body:'If you can see this, alarms work.', schedule:{at:new Date(Date.now()+15000), allowWhileIdle:true}, foreground:true}]}); toast('Lock the phone and wait 15 seconds'); }catch(e){ toast('Could not schedule: '+e); } }; $('rate').addEventListener('change',()=>{ settings.rate=Number($('rate').value||0); saveSettings(); });
 
@@ -810,7 +826,7 @@ async function downloadFile(name, content, type){
 }
 
 // ---------- menu / backup ----------
-$('menuBtn').onclick=()=>{ $('storageNote').textContent = `${jobs.length} job${jobs.length===1?'':'s'} stored on this phone. Version ${VERSION}.`; openSheet('menuSheet'); };
+$('menuBtn').onclick=()=>{ $('storageNote').textContent = `${jobs.length} job${jobs.length===1?'':'s'} stored on this phone. Version ${VERSION}.` + (FS ? (autoState==='ok' ? ' A safety copy is kept automatically in Documents > JobPlanner > jobs-backup.json.' : autoState==='fail' ? ' The automatic safety copy could not be written. Use Save backup file.' : '') : ''); openSheet('menuSheet'); };
 $('menuClose').onclick=()=>closeSheet('menuSheet');
 $('exportBtn').onclick=()=>downloadFile(`jobs-backup-${dayKey(new Date())}.json`, JSON.stringify(jobs,null,2), 'application/json');
 $('importBtn').onclick=()=>$('importFile').click();
