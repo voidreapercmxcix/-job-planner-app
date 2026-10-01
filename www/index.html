@@ -134,6 +134,8 @@ header h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--ink2)
 .chart svg{width:100%;height:auto;display:block}
 .chart .leg{display:flex;gap:12px;font-size:.78rem;color:var(--ink2);margin-top:4px}
 .leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+@media(max-width:700px){ .grp .row{grid-template-columns:1fr} }
+.sheet>div{overflow-x:hidden} .f input,.f select,.f textarea,.exadd input,.exadd select{min-width:0}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
@@ -250,6 +252,16 @@ header h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--ink2)
         <button class="btn" id="exAdd">Add</button>
       </div>
     </div>
+    <div class="grp">
+      <h4>Extras (waiting time, fees)</h4>
+      <div class="exlist" id="xlist"></div>
+      <div class="exadd">
+        <select id="xType"><option value="wait">Waiting time</option><option value="other">Other extra</option></select>
+        <input id="xAmt" type="number" inputmode="decimal" step="1" placeholder="mins">
+        <input id="xNote" placeholder="Note">
+        <button class="btn" id="xAdd">Add</button>
+      </div>
+    </div>
     <div class="f hidden" id="outcomeBox"><label>Outcome</label><div class="note" id="outcomeText" style="margin:0"></div></div>
 
     <div class="warns" id="editWarns"></div>
@@ -283,9 +295,10 @@ header h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--ink2)
     <button class="btn" id="exportBtn">Save backup file</button>
     <button class="btn" id="importBtn">Restore from backup</button>
     <input type="file" id="importFile" accept="application/json" class="hidden">
-    <button class="btn" id="clearDone">Remove delivered jobs older than 7 days</button>
     <div class="f hidden" id="leadBox" style="margin-top:10px"><label for="lead">Reminder before planned time (minutes)</label><input id="lead" type="number" inputmode="numeric" step="5"></div>
     <button class="btn hidden" id="testAlarm">Test an alarm (fires in 15 seconds)</button>
+    <label class="f" style="flex-direction:row;align-items:center;gap:10px;margin-top:10px"><input type="checkbox" id="showArchived" style="width:22px;height:22px"> <span>Show delivered jobs older than 14 days on the board (they always stay in Money)</span></label>
+    <div class="f"><label for="waitRate">Waiting time rate (£ per hour)</label><input id="waitRate" type="number" step="0.5" inputmode="decimal"></div>
     <div class="f" style="margin-top:10px"><label for="rate">Own-vehicle mileage rate (£ per mile, HMRC is 0.45 up to 10,000 miles then 0.25)</label><input id="rate" type="number" step="0.01" inputmode="decimal"></div>
     <p id="storageNote" style="margin-top:8px"></p>
   </div>
@@ -337,7 +350,7 @@ async function nativeBoot(){
 
 // ---------- storage ----------
 const KEY = 'jobs.v1';
-const VERSION = '1.0.3';
+const VERSION = '1.1.0';
 let jobs = [];
 function load(){ try{ jobs = JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ jobs = []; } }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(jobs)); }catch(e){ toast('Could not save. Storage may be full.'); } syncAlarms(); }
@@ -399,6 +412,7 @@ function buildDays(){
 }
 function jobDays(j){
   const s = new Set();
+  if(j.status==='onboard') s.add(dayKey(new Date()));
   if(j.cPlan) s.add(dayKey(dt(j.cPlan))); else if(j.cStart) s.add(dayKey(dt(j.cStart)));
   if(j.dPlan) s.add(dayKey(dt(j.dPlan))); else if(j.dEnd) s.add(dayKey(dt(j.dEnd)));
   return [...s];
@@ -410,8 +424,13 @@ function render(){
   if(view==='money'){ renderMoney(); return; }
   buildDays();
   $('todayLabel').textContent = fmt(new Date()).slice(0,-6);
+  const anyOnboard = jobs.some(j=>j.status==='onboard');
+  const board=$('board'), cols={}; board.querySelectorAll('.col').forEach(c=>cols[c.dataset.status]=c);
+  const order = anyOnboard ? ['onboard','todo','done'] : ['todo','onboard','done'];
+  if([...board.children].map(c=>c.dataset.status).join()!==order.join()){ order.forEach(k=>board.appendChild(cols[k])); board.scrollLeft=0; }
+  const archiveCut = Date.now()-14*864e5;
   for(const st of ['todo','onboard','done']){
-    const list = jobs.filter(j=>j.status===st && (selectedDay==='' || jobDays(j).includes(selectedDay)))
+    const list = jobs.filter(j=>j.status===st && (selectedDay==='' || jobDays(j).includes(selectedDay)) && !(st==='done' && !settings.showArchived && jobDate(j) < archiveCut))
       .sort((a,b)=> (a.cPlan||a.cStart||'').localeCompare(b.cPlan||b.cStart||''));
     $('n-'+st).textContent = list.length ? list.length : '';
     const el = $('l-'+st); el.innerHTML='';
@@ -439,7 +458,7 @@ function card(j){
     ${stopHtml('C', j.cFrom, j.cPlan, j.cStart, j.cEnd)}
     ${stopHtml('D', j.dTo, j.dPlan, j.dStart, j.dEnd)}
     ${w.map(x=>`<span class="flag ${x.l}">${esc(x.t)}</span>`).join('')}
-    <div class="meta">${[j.ref, j.miles?j.miles+' mi quoted':'', actualMiles(j)!==null?actualMiles(j)+' actual':'', j.ownMiles?j.ownMiles+' own':'', j.hours?j.hours+' h drive':'', expTotal(j)?'exp '+money(expTotal(j)):''].filter(Boolean).join(' · ')}${j.notes?'<br>'+esc(j.notes):''}</div>
+    <div class="meta">${[j.ref, j.miles?j.miles+' mi quoted':'', actualMiles(j)!==null?actualMiles(j)+' actual':'', j.ownMiles?j.ownMiles+' own':'', j.hours?j.hours+' h drive':'', expTotal(j)?'exp '+money(expTotal(j)):'', extrasTotal(j)?'+'+money(extrasTotal(j))+' extras'+(waitMins(j)?' ('+fmtH(waitMins(j))+' waiting)':''):''].filter(Boolean).join(' · ')}${j.notes?'<br>'+esc(j.notes):''}</div>
     <div class="acts">
       ${next?`<button class="btn primary" data-a="next">${next[1]}</button>`:`<button class="btn" data-a="back">Back to on board</button>`}
       <button class="btn${NATIVE?' hidden':''}" data-a="cal">Calendar</button>
@@ -454,12 +473,13 @@ function card(j){
 
 // ---------- edit sheet ----------
 const F = ['reg','ref','vehicle','cFrom','cStart','cEnd','cPlan','dTo','dStart','dEnd','dPlan','miles','hours','pay','status','notes','odoStart','odoEnd','ownMiles'];
-let editing = null; let editExp = [];
+let editing = null; let editExp = []; let editX = [];
 function openEdit(j){
   editing = j ? j.id : null;
   const v = j || {status:'todo'};
   for(const k of F) $(k).value = v[k] ?? '';
   editExp = (v.expenses||[]).map(e=>({...e})); renderExp();
+  editX = (v.extras||[]).map(e=>({...e})); renderX();
   const oc = v.outcome; $('outcomeBox').classList.toggle('hidden', !oc);
   if(oc) $('outcomeText').textContent = `${v.status==='cancelled'?'Cancelled':'Aborted'} on ${fmt(new Date(oc.at))}. ${oc.reason||''} Paid ${money(oc.paid)||'£0.00'}.`;
   $('outcomeBtns').classList.toggle('hidden', !j || j.status==='done' || !!oc);
@@ -481,7 +501,8 @@ F.forEach(k=>$(k).addEventListener('input',liveWarns));
 $('saveBtn').onclick=()=>{
   const o = readForm();
   if(!o.reg && !o.cFrom && !o.dTo){ toast('Add at least a reg or an address'); return; }
-  o.expenses = editExp;
+  o.expenses = editExp; o.extras = editX;
+  if(o.status==='done'){ const prev=editing&&jobs.find(x=>x.id===editing); o.doneAt = (prev&&prev.doneAt)||Date.now(); }
   if(editing){ const j=jobs.find(x=>x.id===editing); Object.assign(j,o); }
   else { jobs.push({id:uid(), created:Date.now(), ...o}); }
   save(); closeSheet('editSheet'); render(); toast('Saved');
@@ -494,9 +515,12 @@ $('addBtn').onclick=()=>openEdit(null);
 function actualMiles(j){ const a=Number(j.odoStart), b=Number(j.odoEnd); return (j.odoStart&&j.odoEnd&&b>a) ? b-a : null; }
 function milesFor(j){ const m=actualMiles(j); return m!==null ? m : Number(j.miles||0); }
 function inflation(j){ const m=actualMiles(j); return (m!==null && j.miles) ? Number(j.miles)-m : 0; }
-let settings={rate:0.45}; try{ Object.assign(settings, JSON.parse(localStorage.getItem('jobs.settings'))||{}); }catch(e){}
+let settings={rate:0.45, waitRate:15, showArchived:false}; try{ Object.assign(settings, JSON.parse(localStorage.getItem('jobs.settings'))||{}); }catch(e){}
 function saveSettings(){ try{ localStorage.setItem('jobs.settings', JSON.stringify(settings)); }catch(e){} }
 function ownAllowance(j){ return Number(j.ownMiles||0)*Number(settings.rate||0); }
+function extrasTotal(j){ return (j.extras||[]).reduce((a,e)=>a+Number(e.amount||0),0); }
+function waitMins(j){ return (j.extras||[]).filter(e=>e.type==='wait').reduce((a,e)=>a+Number(e.minutes||0),0); }
+function fmtH(mins){ const h=Math.floor(mins/60), m=mins%60; return (h?h+' h':'')+(m?(h?' ':'')+m+' min':''); }
 function expTotal(j){ return (j.expenses||[]).reduce((a,e)=>a+Number(e.amount||0),0); }
 function renderExp(){
   const el=$('exlist');
@@ -511,6 +535,21 @@ $('exAdd').onclick=()=>{
   $('exAmt').value=''; $('exNote').value=''; renderExp();
 };
 $('exAmt').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); $('exAdd').click(); } });
+function renderX(){
+  const el=$('xlist');
+  el.innerHTML = editX.length ? editX.map(e=>`<div class="exrow"><div>${e.type==='wait'?'Waiting '+fmtH(Number(e.minutes)):'Extra'}${e.note?`<small>${esc(e.note)}</small>`:''}</div><b>${money(e.amount)}</b><button class="btn" data-x="${e.id}">Remove</button></div>`).join('')
+    + `<div class="exrow" style="border-top:2px solid var(--line)"><div>Total extras</div><b>${money(editX.reduce((a,e)=>a+Number(e.amount||0),0))||'£0.00'}</b><span></span></div>`
+    : '<div class="note" style="margin:0 0 6px">No extras logged.</div>';
+  el.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{ editX=editX.filter(e=>e.id!==b.dataset.x); renderX(); });
+}
+$('xType').addEventListener('change',()=>{ const w=$('xType').value==='wait'; $('xAmt').placeholder = w?'mins':'£'; $('xAmt').step = w?'1':'0.01'; });
+$('xAdd').onclick=()=>{
+  const w=$('xType').value==='wait'; const n=Number($('xAmt').value); if(!n){ toast(w?'How many minutes?':'Put an amount in'); return; }
+  const amount = w ? (n/60*Number(settings.waitRate||0)) : n;
+  editX.push({id:uid(), type:w?'wait':'other', minutes:w?n:0, amount:amount.toFixed(2), note:$('xNote').value.trim(), at:Date.now()});
+  $('xAmt').value=''; $('xNote').value=''; renderX();
+};
+$('xAmt').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); $('xAdd').click(); } });
 
 let outKind='cancelled';
 function openOutcome(kind){ outKind=kind; $('outTitle').textContent = kind==='cancelled'?'Cancel job':'Abort job'; $('outReason').value=''; $('outPaid').value='0'; openSheet('outSheet'); }
@@ -519,7 +558,7 @@ $('abortJobBtn').onclick=()=>openOutcome('aborted');
 $('outClose').onclick=()=>closeSheet('outSheet');
 $('outGo').onclick=()=>{
   const j=jobs.find(x=>x.id===editing); if(!j) return;
-  Object.assign(j, readForm()); j.expenses=editExp;
+  Object.assign(j, readForm()); j.expenses=editExp; j.extras=editX;
   j.status=outKind; j.outcome={at:Date.now(), reason:$('outReason').value.trim(), paid:Number($('outPaid').value||0).toFixed(2)};
   save(); $('outSheet').classList.add('hidden'); $('editSheet').classList.add('hidden'); if(history.state&&history.state.sheet) history.go(-2); render(); toast(outKind==='cancelled'?'Job cancelled':'Job aborted');
 };
@@ -536,6 +575,7 @@ function askOdo(j, nextStatus){
 function finishOdo(val){
   const j=odoJob; if(!j) return;
   if(val!=='' && val!==null){ if(odoNext==='onboard'){ j.odoStart=val; j.odoStartAt=Date.now(); } else { j.odoEnd=val; j.odoEndAt=Date.now(); } }
+  if(odoNext==='done') j.doneAt=Date.now();
   j.status=odoNext; save(); closeSheet('odoSheet'); render();
   const m=actualMiles(j); toast(odoNext==='onboard' ? 'Collected' : (m!==null ? `Delivered · ${m} actual mi` : 'Delivered'));
 }
@@ -544,6 +584,7 @@ $('odoGo').onclick=()=>{ const v=$('odoVal').value.trim(); if(v==='') { toast('T
 $('odoSkip').onclick=()=>finishOdo(null);
 $('odoClose').onclick=()=>closeSheet('odoSheet');
 $('odoVal').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); $('odoGo').click(); } });
+$('waitRate').value = settings.waitRate; $('waitRate').addEventListener('change',()=>{ settings.waitRate=Number($('waitRate').value||0); saveSettings(); });
 $('rate').value = settings.rate;
 if(NATIVE){ $('leadBox').classList.remove('hidden'); $('testAlarm').classList.remove('hidden'); }
 $('lead').value = settings.lead||60; $('lead').addEventListener('change',()=>{ settings.lead=Number($('lead').value||60); saveSettings(); syncAlarms(); });
@@ -553,8 +594,8 @@ $('testAlarm').onclick=async()=>{ try{ await LN.requestPermissions(); await LN.s
 let view='board', period='week';
 $('viewBtn').onclick=()=>{ view = view==='board'?'money':'board'; $('viewBtn').textContent = view==='board'?'Money':'Board'; render(); };
 document.querySelectorAll('.periods .btn').forEach(b=>b.onclick=()=>{ period=b.dataset.p; document.querySelectorAll('.periods .btn').forEach(x=>x.classList.toggle('on',x===b)); renderMoney(); });
-function jobDate(j){ return dt(j.dPlan)||dt(j.dEnd)||dt(j.cPlan)||dt(j.cStart)||new Date(j.created||0); }
-function earned(j){ return j.status==='done' ? Number(j.pay||0) : (j.outcome ? Number(j.outcome.paid||0) : 0); }
+function jobDate(j){ if(j.status==='done' && j.doneAt) return new Date(j.doneAt); if(j.outcome && j.outcome.at) return new Date(j.outcome.at); return dt(j.dPlan)||dt(j.dEnd)||dt(j.cPlan)||dt(j.cStart)||new Date(j.created||0); }
+function earned(j){ const base = j.status==='done' ? Number(j.pay||0) : (j.outcome ? Number(j.outcome.paid||0) : 0); return base + ((j.status==='done'||j.outcome) ? extrasTotal(j) : 0); }
 function periodRange(){
   const now=new Date(); now.setHours(0,0,0,0);
   const monday=d=>{ const x=new Date(d); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x; };
@@ -567,11 +608,12 @@ function periodRange(){
 function renderMoney(){
   const [a,b]=periodRange();
   const list=jobs.filter(j=>{ const d=jobDate(j); return d>=a && d<b && j.status!=='todo' && j.status!=='onboard'; }).sort((x,y)=>jobDate(y)-jobDate(x));
-  const earn=list.reduce((t,j)=>t+earned(j),0), spent=list.reduce((t,j)=>t+expTotal(j),0), done_=list.filter(j=>j.status==='done'), miles=done_.reduce((t,j)=>t+milesFor(j),0), quoted=done_.reduce((t,j)=>t+Number(j.miles||0),0), infl=done_.reduce((t,j)=>t+inflation(j),0), own=list.reduce((t,j)=>t+Number(j.ownMiles||0),0), allow=list.reduce((t,j)=>t+ownAllowance(j),0);
+  const earn=list.reduce((t,j)=>t+earned(j),0), spent=list.reduce((t,j)=>t+expTotal(j),0), done_=list.filter(j=>j.status==='done'), miles=done_.reduce((t,j)=>t+milesFor(j),0), quoted=done_.reduce((t,j)=>t+Number(j.miles||0),0), infl=done_.reduce((t,j)=>t+inflation(j),0), own=list.reduce((t,j)=>t+Number(j.ownMiles||0),0), allow=list.reduce((t,j)=>t+ownAllowance(j),0), xt=list.reduce((t,j)=>t+extrasTotal(j),0), wm=list.reduce((t,j)=>t+waitMins(j),0);
   const done=list.filter(j=>j.status==='done').length, lost=list.length-done;
   $('sum').innerHTML=`<div><small>Earned</small><b class="pos">${money(earn)||'£0.00'}</b></div><div><small>Expenses</small><b class="neg">${money(spent)||'£0.00'}</b></div>
     <div><small>Net</small><b>${money(earn-spent)||'£0.00'}</b></div><div><small>Jobs</small><b>${done}</b> <small style="display:inline">delivered${lost?`, ${lost} cancelled/aborted`:''}</small></div>
-    <div><small>Miles driven</small><b>${miles}</b> <small style="display:inline">${infl>0?`quotes over by ${infl}`:quoted&&miles?`${quoted} quoted`:''}</small></div><div><small>Own vehicle</small><b>${own} mi</b> <small style="display:inline">${allow?`= ${money(allow)} at ${settings.rate}/mi`:''}</small></div>`;
+    <div><small>Miles driven</small><b>${miles}</b> <small style="display:inline">${infl>0?`quotes over by ${infl}`:quoted&&miles?`${quoted} quoted`:''}</small></div><div><small>Own vehicle</small><b>${own} mi</b> <small style="display:inline">${allow?`= ${money(allow)} at ${settings.rate}/mi`:''}</small></div>
+    <div><small>Waiting time</small><b>${fmtH(wm)||'0'}</b> <small style="display:inline">${xt?`extras ${money(xt)} incl. in earned`:''}</small></div>`;
   renderCharts(list, a, b);
   $('mlist').innerHTML = list.length ? list.map(j=>`<div class="mrow" data-id="${j.id}"><div><span class="r">${esc(j.reg||j.ref||'Job')}</span>${j.status!=='done'?`<span class="st x">${j.status}</span>`:''}</div><div><b class="pos">${money(earned(j))||'£0'}</b>${expTotal(j)?` <span class="neg">−${money(expTotal(j))}</span>`:''}</div>
     <div class="d">${fmt(jobDate(j)).slice(0,-6)} · ${esc((j.cFrom||'').split(',')[0])} → ${esc((j.dTo||'').split(',')[0])}${actualMiles(j)!==null?` · ${actualMiles(j)} mi`:j.miles?` · ${j.miles} mi (quoted)`:''}</div></div>`).join('')
@@ -620,10 +662,11 @@ $('csvBtn').onclick=()=>{
   const [a,b]=periodRange();
   const list=jobs.filter(j=>{ const d=jobDate(j); return d>=a && d<b && j.status!=='todo' && j.status!=='onboard'; }).sort((x,y)=>jobDate(x)-jobDate(y));
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const rows=[['Date','Reg','Job ref','Status','Collect from','Deliver to','Quoted miles','Odo start','Odo end','Actual miles','Own-vehicle miles','Own-vehicle allowance','Earned','Expenses','Net','Expense detail','Outcome'].map(q).join(',')];
+  const rows=[['Date','Reg','Job ref','Status','Collect from','Deliver to','Quoted miles','Odo start','Odo end','Actual miles','Own-vehicle miles','Own-vehicle allowance','Base pay','Waiting mins','Extras','Earned','Expenses','Net','Expense detail','Extras detail','Outcome'].map(q).join(',')];
   for(const j of list){
     const det=(j.expenses||[]).map(e=>`${e.type} ${e.amount}${e.note?' ('+e.note+')':''}`).join('; ');
-    rows.push([dayKey(jobDate(j)),j.reg,j.ref,j.status,j.cFrom,j.dTo,j.miles,j.odoStart,j.odoEnd,actualMiles(j)??'',j.ownMiles,ownAllowance(j).toFixed(2),earned(j).toFixed(2),expTotal(j).toFixed(2),(earned(j)-expTotal(j)).toFixed(2),det,j.outcome?j.outcome.reason:''].map(q).join(','));
+    const xdet=(j.extras||[]).map(e=>`${e.type==='wait'?'Waiting '+e.minutes+' min':'Extra'} ${e.amount}${e.note?' ('+e.note+')':''}`).join('; ');
+    rows.push([dayKey(jobDate(j)),j.reg,j.ref,j.status,j.cFrom,j.dTo,j.miles,j.odoStart,j.odoEnd,actualMiles(j)??'',j.ownMiles,ownAllowance(j).toFixed(2),(j.status==='done'?Number(j.pay||0):Number(j.outcome&&j.outcome.paid||0)).toFixed(2),waitMins(j),extrasTotal(j).toFixed(2),earned(j).toFixed(2),expTotal(j).toFixed(2),(earned(j)-expTotal(j)).toFixed(2),det,xdet,j.outcome?j.outcome.reason:''].map(q).join(','));
   }
   downloadFile(`jobs-${period}-${dayKey(new Date())}.csv`, rows.join('\r\n'), 'text/csv');
 };
@@ -779,12 +822,7 @@ $('importFile').onchange=e=>{
     }catch(err){ toast('That file is not a planner backup'); } };
   r.readAsText(f); e.target.value='';
 };
-$('clearDone').onclick=()=>{
-  const cut = Date.now()-7*864e5;
-  const before = jobs.length;
-  jobs = jobs.filter(j=> !(j.status==='done' && (dt(j.dPlan)||dt(j.dEnd)||new Date(j.created||0)) < cut));
-  save(); render(); toast(`Removed ${before-jobs.length}`); closeSheet('menuSheet');
-};
+$('showArchived').checked = !!settings.showArchived; $('showArchived').addEventListener('change',()=>{ settings.showArchived=$('showArchived').checked; saveSettings(); render(); });
 document.querySelectorAll('.sheet').forEach(s=>s.addEventListener('click',e=>{ if(e.target===s) closeSheet(s.id); }));
 
 // ---------- boot ----------
